@@ -10,7 +10,9 @@
 #SBATCH --error=logs/%x_%j.err
 set -euo pipefail
 COURSEDIR=/data/courses/genome_annotation_resources/2026
-WORKDIR=/PATH/TO/YOUR/PROJECT  # Directory in your /data/users/$USER/Folder.
+WORKDIR=/data/users/dwalker/organization_annotation_eukaryote_genomes
+
+# Directory in your /data/users/$USER/Folder.
 # Use the intact-element FASTA
 # Edit these two input paths to match your assembly's filename.
 RAW="$WORKDIR/output/EDTA"
@@ -18,6 +20,11 @@ RAW="$WORKDIR/output/EDTA"
 shopt -s nullglob
 FASTA=("$RAW"/*.mod.EDTA.raw/*.mod.LTR.intact.raw.fa)
 GFF=("$RAW"/*.mod.EDTA.raw/*.mod.LTR.intact.raw.gff3)
+
+if (( ${#FASTA[@]} == 0 || ${#GFF[@]} == 0 )); then
+    echo "ERROR: Intact LTR FASTA/GFF3 files not found yet. EDTA may still be running." >&2
+    exit 1
+fi
 
 OUTDIR="$WORKDIR/output/LTR_full_length"
 unset SINGULARITY_BIND APPTAINER_BIND SINGULARITY_TMPDIR
