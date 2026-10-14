@@ -1,0 +1,32 @@
+# Raw / large data
+data/
+results/
+logs/
+
+# Temporary / cache files
+*.tmp
+*.log
+*.out
+*.err
+*.slurm
+*.swp
+.DS_Store
+
+# Python / notebook cache
+__pycache__/
+.ipynb_checkpoints/
+
+# Large bioinformatics files
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.fasta
+*.fa
+*.fna
+*.faa
+*.gff
+*.gff3
+*.bam
+*.sam
+*.cram
