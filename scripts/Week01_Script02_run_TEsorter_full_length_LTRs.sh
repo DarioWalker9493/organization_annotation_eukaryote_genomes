@@ -5,7 +5,6 @@
 #SBATCH --mem=8G
 #SBATCH --time=01:00:00
 #SBATCH --account=class-sbl-30004-ws-2026
-#SBATCH --reservation=class-sbl-30004-2026-10-14
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 set -euo pipefail
