@@ -5,10 +5,10 @@
 #SBATCH --cpus-per-task=20
 #SBATCH --mem=96G
 #SBATCH --time=6-00:00:00
-#SBATCH --account=class-sbl-30004-ws-2026
-#SBATCH --reservation=class-sbl-30004-2026-10-14
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=dario.walker@students.unibe.ch
 
 # Stop on failed commands, unset variables, or failures within pipelines.
 set -euo pipefail
@@ -49,4 +49,5 @@ apptainer exec -C \
     --cds "$CDS" \
     --anno 1 \
     --wholeelement 1 \
-    --threads "$SLURM_CPUS_PER_TASK"
+    --threads "$SLURM_CPUS_PER_TASK" \
+    --overwrite 0
