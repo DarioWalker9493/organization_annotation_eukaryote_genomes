@@ -3,7 +3,7 @@
 #SBATCH --partition=pibu_el8
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=01:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -92,6 +92,7 @@ echo "Running TEsorter on Copia..."
 apptainer exec -C \
     --bind "$WORKDIR" \
     --bind "$COURSEDIR" \
+    --pwd "$OUTDIR" \
     "$COURSEDIR/containers/TEsorter_1.3.0.sif" \
     TEsorter \
     Copia_sequences.fa \
@@ -108,6 +109,7 @@ echo "Running TEsorter on Gypsy..."
 apptainer exec -C \
     --bind "$WORKDIR" \
     --bind "$COURSEDIR" \
+    --pwd "$OUTDIR" \
     "$COURSEDIR/containers/TEsorter_1.3.0.sif" \
     TEsorter \
     Gypsy_sequences.fa \
