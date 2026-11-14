@@ -205,3 +205,128 @@ Selected quantitative results are stored in `results/TE_annotation/`, including:
 - `scripts/Week02_Script05_prepare_detailed_TE_landscape.sh` — preparation of detailed RepeatMasker superfamily-level landscape data
 - `scripts/Week02_Script06_TE_landscape.R` — TE divergence landscape and approximate insertion-age analysis
 - `scripts/Week02_Script06_run_TE_landscape.sh` — Slurm wrapper for the final TE landscape analysis
+
+## Week 3 — Gene Annotation with MAKER
+
+### MAKER gene annotation
+
+Structural gene annotation was performed with **MAKER** using multiple complementary sources of evidence:
+
+- the Lu-1 Flye genome assembly,
+- Trinity RNA-seq transcript evidence,
+- TAIR10 and reviewed Viridiplantae protein homology,
+- the EDTA transposable-element library for repeat masking,
+- and the pre-trained Arabidopsis AUGUSTUS gene-prediction model.
+
+The initial MAKER annotation contained:
+
+- **29,098 gene models**
+- **32,579 mRNA models**
+- **32,579 predicted proteins**
+- **32,579 predicted transcript sequences**
+
+Gene and transcript identifiers were subsequently standardized using the `LU1` prefix.
+
+### Functional annotation and quality filtering
+
+Predicted proteins were annotated with **InterProScan using Pfam 37.0**.
+
+Of the 32,579 predicted proteins, **25,455 (78.13%)** contained at least one Pfam domain.
+
+MAKER Annotation Edit Distance (AED) was used to assess agreement between predicted gene models and the supplied transcript/protein evidence. Lower AED values indicate stronger evidence support.
+
+The AED distribution showed that **97.8% of models had AED ≤ 0.5**, indicating that the large majority of predicted models were well supported by the supplied evidence.
+
+Pfam annotation was also strongly associated with annotation quality:
+
+| AED group | Proteins with Pfam | Pfam coverage |
+|---|---:|---:|
+| AED ≤ 0.5 | 25,223 / 31,855 | **79.18%** |
+| AED > 0.5 | 232 / 724 | **32.04%** |
+
+Thus, proteins from low-AED gene models were substantially more likely to contain a recognizable Pfam domain.
+
+After MAKER quality filtering, the final annotation contained:
+
+- **29,096 genes**
+- **32,574 mRNA features**
+- **32,574 protein sequences**
+- **32,574 transcript sequences**
+
+Only two gene models were removed by the filtering procedure.
+
+### BUSCO annotation completeness
+
+For BUSCO analysis, the longest protein and transcript isoform was selected for each of the **29,096 genes** to avoid counting alternative isoforms as artificial duplicates.
+
+BUSCO was run using the **brassicales_odb10** lineage containing 4,596 BUSCO groups.
+
+| BUSCO category | Proteins | Transcripts |
+|---|---:|---:|
+| Complete | **96.7%** | **97.8%** |
+| Single-copy | 90.5% | 89.1% |
+| Duplicated | 6.2% | 8.7% |
+| Fragmented | 0.4% | 0.4% |
+| Missing | 2.9% | 1.8% |
+
+The high proportion of complete BUSCOs and low proportion of missing BUSCOs indicate high completeness of the MAKER gene annotation.
+
+### Annotation structure statistics
+
+Structural statistics were calculated using **AGAT**.
+
+For one representative isoform per gene:
+
+- Number of genes: **29,096**
+- Mean gene length: **2,280 bp**
+- Median gene length: **1,758 bp**
+- Mean mRNA length: **2,271 bp**
+- Mean exons per mRNA: **5.9**
+- Single-exon genes: **6,992**
+- Longest gene: **199,899 bp**
+
+The very shortest predicted models represent potential candidates for later manual inspection in a genome browser.
+
+### Gene and TE density
+
+Gene density was compared with the Gypsy, Copia and TIR distributions characterized during Week 2. Gene and TE densities were calculated using **100 kb windows across the ten largest scaffolds**.
+
+![Gene and TE density across the 10 largest scaffolds](plots/06_Gene_TE_density_circos.png)
+
+Spearman correlations between gene density and TE density were:
+
+| TE group | Spearman ρ |
+|---|---:|
+| Gypsy | **-0.533** |
+| Copia | -0.238 |
+| TIR | -0.286 |
+| Total TE | **-0.415** |
+
+Gene density therefore shows an overall negative spatial relationship with TE density, with the strongest association observed for Gypsy retrotransposons.
+
+This trend is also visible at the scaffold level. For example, `contig_49` has the highest gene density among the ten largest scaffolds at approximately **284 genes/Mb**, while containing only approximately **1.3 Gypsy elements/Mb**. In contrast, `contig_131` has only approximately **90.7 genes/Mb** but approximately **146.3 Gypsy elements/Mb**.
+
+These results suggest that gene-rich and TE-rich genomic regions tend to occupy different parts of the Lu-1 assembly, particularly for Gypsy retrotransposons.
+
+### Week 3 result files
+
+Selected quantitative results are stored in `results/gene_annotation/`, including:
+
+- `Week03_gene_annotation_summary.tsv` — summary of the principal MAKER, Pfam, AED, BUSCO, AGAT and gene/TE results
+- `Week03_gene_TE_density_top10_scaffolds.tsv` — scaffold-level gene and TE densities
+- `Week03_gene_TE_density_100kb_windows.tsv` — gene and TE counts in 100 kb windows
+- `Week03_gene_TE_density_correlations.tsv` — Spearman correlations between gene and TE densities
+
+### Workflow scripts
+
+- `scripts/Week03_Script01_run_MAKER.sh` — MAKER gene annotation
+- `scripts/Week03_Script02_merge_MAKER_outputs.sh` — merging of MAKER GFF and FASTA outputs
+- `scripts/Week03_Script03_rename_MAKER_ids.sh` — consistent LU1 gene and transcript identifiers
+- `scripts/Week03_Script04_run_InterProScan.sh` — Pfam functional annotation with InterProScan
+- `scripts/Week03_Script05_filter_MAKER_annotations.sh` — AED/Pfam-based quality filtering
+- `scripts/Week03_Script06_analyze_AED_Pfam.py` — comparison of Pfam annotation frequency between low- and high-AED models
+- `scripts/Week03_Script07_extract_longest_isoforms.py` — extraction of one longest isoform per gene
+- `scripts/Week03_Script08_run_BUSCO.sh` — BUSCO completeness analysis
+- `scripts/Week03_Script09_run_AGAT.sh` — structural gene-annotation statistics
+- `scripts/Week03_Script10_gene_TE_density_circos.R` — gene/TE density analysis and Circos visualization
+- `scripts/Week03_Script10_run_gene_TE_density_circos.sh` — Slurm wrapper for gene/TE density analysis
