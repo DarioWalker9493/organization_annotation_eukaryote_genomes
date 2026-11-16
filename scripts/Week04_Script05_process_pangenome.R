@@ -27,7 +27,8 @@ dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 pg <- read_tsv(
   file.path(wd, "pangenes/TAIR10_pangenes.txt.gz"),
   show_col_types = FALSE
-) %>% filter(!is.na(interpOrd)) # removes records without reference-relative positions.
+)
+
 message("\nFirst six rows of the pangenome table (entries with a reference-relative position).")
 print(head(pg))
 
@@ -117,7 +118,7 @@ ggsave(file.path(plot_dir, "pangenome_presence_frequency.pdf"),
 # STEP 4: Count PASS and array copies, including zeros for missing matches.
 # ============================================================================
 syntenic_counts <- pg %>%
-  filter(flag %in% c("PASS", "array"), !is.na(id), nzchar(id)) %>%
+  filter(flag == "PASS", !is.na(id), nzchar(id)) %>%
   distinct(pgID, genome, id) %>%
   count(pgID, genome, name = "copies")
 
@@ -157,16 +158,12 @@ print(core_summary)
 # ============================================================================
 # Rank each gene set separately by copies in the focal accession.
 # Ties are resolved by pgID; the two panels may contain different entries.
-focal_counts <- comparison_counts %>%
-  filter(genome == focal_genome) %>%
-  select(gene_set, pgID, focal_copies = copies)
 
 plot_entries <- copy_variable_core %>%
-  left_join(focal_counts, by = c("gene_set", "pgID")) %>%
+  mutate(copy_difference = max_copies - min_copies) %>%
   group_by(gene_set) %>%
-  arrange(desc(focal_copies), pgID, .by_group = TRUE) %>%
+  arrange(desc(copy_difference), desc(max_copies), pgID, .by_group = TRUE) %>%
   slice_head(n = 20) %>%
-  mutate(focal_rank = row_number()) %>%
   ungroup()
 
 # Separate row labels allow a different pgID order in each panel.
@@ -201,7 +198,7 @@ if (nrow(plot_counts) > 0) {
     labs(
       x = "Accession", y = "Pan-gene entry (pgID)", fill = "Copies",
       title = "Copy-variable core entries",
-      subtitle = paste("Top 20 per set, ranked by copies in", focal_genome, "(highest at top)")
+      subtitle = "Top 20 per set, ranked by largest copy-number difference"
     ) +
     theme_minimal(base_size = 12) +
     theme(
