@@ -20,15 +20,12 @@ WORKDIR=/data/users/dwalker/organization_annotation_eukaryote_genomes
 COURSEDIR=/data/courses/genome_annotation_resources/2026
 
 GENESPACE_DIR="$WORKDIR/output/comparisons/GENESPACE"
-
 GENESPACE_SIF="$COURSEDIR/containers/genespace_latest.sif"
 
 RSCRIPT="$WORKDIR/scripts/Week04_Script06_synteny_plots.R"
 
 TMPDIR="$WORKDIR/output/comparisons/GENESPACE_plot_tmp"
-
 PLOTDIR="$WORKDIR/plots"
-
 
 mkdir -p \
     "$TMPDIR" \
@@ -52,12 +49,9 @@ for FILE in \
 do
 
     if [[ ! -s "$FILE" ]]; then
-
         echo "ERROR: Missing or empty required file:"
         echo "$FILE"
-
         exit 1
-
     fi
 
 done
@@ -65,24 +59,19 @@ done
 
 echo
 echo "GENESPACE parameter file:"
-
-ls -lh \
-    "$GENESPACE_DIR/results/gsParams.rda"
-
+ls -lh "$GENESPACE_DIR/results/gsParams.rda"
 
 echo
 echo "Container:"
-
-ls -lh \
-    "$GENESPACE_SIF"
+ls -lh "$GENESPACE_SIF"
 
 
 # ============================================================================
-# Run R visualization
+# Run riparian plots
 # ============================================================================
 
 echo
-echo "Running GENESPACE riparian plots..."
+echo "Creating riparian plots..."
 
 
 apptainer exec \
@@ -98,40 +87,40 @@ apptainer exec \
 
 
 # ============================================================================
-# Convert final PDFs to PNG
+# Copy GENESPACE-generated Lu1 vs TAIR10 dotplots
 # ============================================================================
 
 echo
-echo "Converting PDFs to PNG..."
+echo "Copying Lu1 vs TAIR10 dotplots..."
 
 
-for NUMBER in 09 10
+RAW_DOTPLOT="$GENESPACE_DIR/dotplots/Lu1_vs_TAIR10.rawHits.pdf"
+
+SYNTENIC_DOTPLOT="$GENESPACE_DIR/dotplots/Lu1_vs_TAIR10.syntenicHits.pdf"
+
+
+for FILE in \
+    "$RAW_DOTPLOT" \
+    "$SYNTENIC_DOTPLOT"
 do
 
-    PDF=$(find "$PLOTDIR" \
-        -maxdepth 1 \
-        -type f \
-        -name "${NUMBER}_*.pdf" \
-        -print \
-        -quit)
-
-    if [[ -z "$PDF" ]]; then
-
-        echo "ERROR: Plot ${NUMBER} PDF not found."
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing expected GENESPACE dotplot:"
+        echo "$FILE"
         exit 1
-
     fi
 
-    PREFIX="${PDF%.pdf}"
-
-    pdftoppm \
-        -png \
-        -singlefile \
-        -r 300 \
-        "$PDF" \
-        "$PREFIX"
-
 done
+
+
+cp \
+    "$RAW_DOTPLOT" \
+    "$PLOTDIR/11_Lu1_vs_TAIR10_rawHits.pdf"
+
+
+cp \
+    "$SYNTENIC_DOTPLOT" \
+    "$PLOTDIR/12_Lu1_vs_TAIR10_syntenicHits.pdf"
 
 
 # ============================================================================
@@ -144,9 +133,22 @@ echo "Final Week 5 plots"
 echo "========================================"
 
 
-ls -lh \
-    "$PLOTDIR"/09_* \
-    "$PLOTDIR"/10_*
+for FILE in \
+    "$PLOTDIR/09_Lu1_vs_TAIR10_riparian.pdf" \
+    "$PLOTDIR/10_all_genomes_TAIR10_riparian.pdf" \
+    "$PLOTDIR/11_Lu1_vs_TAIR10_rawHits.pdf" \
+    "$PLOTDIR/12_Lu1_vs_TAIR10_syntenicHits.pdf"
+do
+
+    if [[ ! -s "$FILE" ]]; then
+        echo "ERROR: Missing expected final plot:"
+        echo "$FILE"
+        exit 1
+    fi
+
+    ls -lh "$FILE"
+
+done
 
 
 echo
