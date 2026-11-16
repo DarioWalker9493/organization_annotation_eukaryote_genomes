@@ -2,29 +2,70 @@ library(tidyverse)
 
 
 # ============================================================================
-# Settings for your GENESPACE run
+# Settings
 # ============================================================================
 
-wd <- "/data/users/dwalker/organization_annotation_eukaryote_genomes/output/comparisons/GENESPACE"
+project_dir <- "/data/users/dwalker/organization_annotation_eukaryote_genomes"
+
+wd <- file.path(
+  project_dir,
+  "output/comparisons/GENESPACE"
+)
+
 focal_genome <- "Lu1"
 
 options(tibble.width = Inf)
 
-# Keep all results from this script together inside the GENESPACE directory.
-output_dir <- file.path(wd, "process_pangenome")
-plot_dir <- file.path(output_dir, "plots")
-table_dir <- file.path(output_dir, "tables")
 
-dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
-dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
+# ============================================================================
+# Output directories
+# ============================================================================
+
+# Analysis tables remain with the GENESPACE results.
+output_dir <- file.path(
+  wd,
+  "process_pangenome"
+)
+
+table_dir <- file.path(
+  output_dir,
+  "tables"
+)
+
+# Final presentation-ready plots are stored centrally in the repository.
+plot_dir <- file.path(
+  project_dir,
+  "plots"
+)
+
+dir.create(
+  output_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  table_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+dir.create(
+  plot_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
+)
 
 
 # ============================================================================
 # STEP 1: Read the TAIR10-reference pan-gene table
 # ============================================================================
 
-# pgID = positional pan-gene entry
-# genome/id = accession and gene identifier
+# pgID:
+#   positional pan-gene entry
+#
+# genome / id:
+#   accession and gene identifier
 #
 # flag:
 #   PASS    = gene assigned through the main orthogroup + synteny grouping
@@ -33,25 +74,58 @@ dir.create(table_dir, recursive = TRUE, showWarnings = FALSE)
 #
 # For the strict syntenic comparison below, only flag == "PASS" is retained.
 
+pangenome_file <- file.path(
+  wd,
+  "pangenes/TAIR10_pangenes.txt.gz"
+)
+
+if (!file.exists(pangenome_file)) {
+  stop(
+    paste(
+      "Missing GENESPACE pangenome file:",
+      pangenome_file
+    )
+  )
+}
+
 pg <- read_tsv(
-  file.path(wd, "pangenes/TAIR10_pangenes.txt.gz"),
+  pangenome_file,
   show_col_types = FALSE
 )
+
+
+message("\n============================================")
+message("Week 4 - Pangenome analysis")
+message("============================================")
+
 
 message("\nFirst six rows of the pangenome table:")
 print(head(pg))
 
-genomes <- sort(unique(pg$genome))
+
+genomes <- sort(
+  unique(pg$genome)
+)
+
 n_genomes <- length(genomes)
+
 
 message("\nGenomes included in the pangenome table:")
 print(genomes)
 
 
 # Keep unique gene associations for each pan-gene entry.
+
 genes <- pg %>%
-  filter(!is.na(id), nzchar(id)) %>%
-  distinct(pgID, genome, id)
+  filter(
+    !is.na(id),
+    nzchar(id)
+  ) %>%
+  distinct(
+    pgID,
+    genome,
+    id
+  )
 
 
 # ============================================================================
@@ -59,11 +133,18 @@ genes <- pg %>%
 # ============================================================================
 
 counts <- genes %>%
-  count(pgID, genome, name = "copies")
+  count(
+    pgID,
+    genome,
+    name = "copies"
+  )
 
 
-# Generate every possible pgID/accession combination so that missing matches
-# are represented explicitly as zero copies.
+# Generate every possible pgID/accession combination.
+#
+# This is important because accessions without a gene assigned to a particular
+# pan-gene entry must explicitly receive copy number zero.
+
 all_combinations <- expand_grid(
   pgID = unique(pg$pgID),
   genome = genomes
@@ -73,83 +154,141 @@ all_combinations <- expand_grid(
 counts <- all_combinations %>%
   left_join(
     counts,
-    by = c("pgID", "genome")
+    by = c(
+      "pgID",
+      "genome"
+    )
   ) %>%
   mutate(
-    copies = replace_na(copies, 0L)
+    copies = replace_na(
+      copies,
+      0L
+    )
   )
 
 
 message("\nFirst six pan-gene entry/accession copy counts:")
-print(head(counts))
+print(
+  head(counts)
+)
 
 
 # ============================================================================
 # STEP 3: Presence-frequency analysis
 # ============================================================================
 
-# Core:
-#   entry present in every accession
+# Categories:
 #
-# Accession-specific:
-#   entry present in exactly one accession
+# core:
+#   present in all accessions
 #
-# Accessory:
-#   entry present in more than one but fewer than all accessions
+# accession_specific:
+#   present in exactly one accession
+#
+# accessory:
+#   present in more than one but fewer than all accessions
 
 entries <- counts %>%
   group_by(pgID) %>%
   summarise(
-    n_present = sum(copies > 0),
-    single_copy_core = all(copies == 1),
-    present_in_focal = any(
-      genome == focal_genome & copies > 0
+
+    n_present = sum(
+      copies > 0
     ),
+
+    single_copy_core = all(
+      copies == 1
+    ),
+
+    present_in_focal = any(
+      genome == focal_genome &
+        copies > 0
+    ),
+
     .groups = "drop"
+
   ) %>%
+
   mutate(
+
     category = case_when(
-      n_present == 0 ~ "no_recorded_match",
-      n_present == n_genomes ~ "core",
-      n_present == 1 ~ "accession_specific",
-      TRUE ~ "accessory"
+
+      n_present == 0 ~
+        "no_recorded_match",
+
+      n_present == n_genomes ~
+        "core",
+
+      n_present == 1 ~
+        "accession_specific",
+
+      TRUE ~
+        "accessory"
+
     )
+
   )
 
 
 presence_summary <- entries %>%
-  count(category, name = "entries")
+  count(
+    category,
+    name = "entries"
+  )
+
 
 message("\nNumber of pan-gene entries in each presence category:")
-print(presence_summary)
+print(
+  presence_summary
+)
 
 
-# A gene can be associated with several positional pan-gene entries.
-# Count distinct gene IDs to obtain the number of unique genes represented
-# for each accession.
+# ============================================================================
+# Unique genes represented per accession
+# ============================================================================
+
+# A gene may be associated with several positional pan-gene entries.
+#
+# Count distinct gene IDs to obtain the actual number of unique genes
+# represented for each accession.
 
 genome_summary <- genes %>%
-  distinct(genome, id) %>%
-  count(genome, name = "unique_genes")
+  distinct(
+    genome,
+    id
+  ) %>%
+  count(
+    genome,
+    name = "unique_genes"
+  )
 
 
 genome_summary <- expand_grid(
   genome = genomes
 ) %>%
+
   left_join(
     genome_summary,
     by = "genome"
   ) %>%
+
   mutate(
-    unique_genes = replace_na(unique_genes, 0L)
+    unique_genes = replace_na(
+      unique_genes,
+      0L
+    )
   )
 
 
 message("\nUnique gene IDs represented in the pangenome table:")
-print(genome_summary)
+print(
+  genome_summary
+)
 
 
-# Presence-frequency plot.
+# ============================================================================
+# Plot 07: Pangenome presence-frequency
+# ============================================================================
 
 frequency <- entries %>%
   count(
@@ -165,27 +304,44 @@ frequency_plot <- ggplot(
     y = pan_gene_entries
   )
 ) +
-  geom_col(fill = "steelblue") +
+
+  geom_col(
+    fill = "steelblue"
+  ) +
+
   scale_x_continuous(
     breaks = 0:n_genomes
   ) +
+
   labs(
     x = "Number of accessions",
     y = "Pan-gene entries",
     title = "Pangenome presence frequency",
     subtitle = "All recorded gene assignments"
   ) +
-  theme_minimal()
+
+  theme_minimal(
+    base_size = 12
+  ) +
+
+  theme(
+    axis.text = element_text(
+      colour = "black"
+    ),
+    panel.grid.minor = element_blank()
+  )
 
 
-message("\nPangenome presence-frequency plot:")
-print(frequency_plot)
+message("\nPlot 07: Pangenome presence frequency")
+print(
+  frequency_plot
+)
 
 
 ggsave(
   filename = file.path(
     plot_dir,
-    "pangenome_presence_frequency.pdf"
+    "07_pangenome_presence_frequency.pdf"
   ),
   plot = frequency_plot,
   width = 7,
@@ -193,28 +349,44 @@ ggsave(
 )
 
 
+ggsave(
+  filename = file.path(
+    plot_dir,
+    "07_pangenome_presence_frequency.png"
+  ),
+  plot = frequency_plot,
+  width = 7,
+  height = 5,
+  dpi = 300
+)
+
+
 # ============================================================================
 # STEP 4: Count strict syntenic copies using PASS only
 # ============================================================================
 
-# The course exercise asks for a comparison between:
+# Course comparison:
 #
-#   1. All recorded genes
-#   2. Syntenic genes only: flag == "PASS"
+# 1. All recorded genes
+# 2. Syntenic genes only: flag == "PASS"
 #
-# array and NSOrtho assignments are therefore excluded here.
+# array and NSOrtho assignments are therefore excluded from the strict
+# syntenic comparison.
 
 syntenic_counts <- pg %>%
+
   filter(
     flag == "PASS",
     !is.na(id),
     nzchar(id)
   ) %>%
+
   distinct(
     pgID,
     genome,
     id
   ) %>%
+
   count(
     pgID,
     genome,
@@ -223,12 +395,20 @@ syntenic_counts <- pg %>%
 
 
 syntenic_counts <- all_combinations %>%
+
   left_join(
     syntenic_counts,
-    by = c("pgID", "genome")
+    by = c(
+      "pgID",
+      "genome"
+    )
   ) %>%
+
   mutate(
-    copies = replace_na(copies, 0L)
+    copies = replace_na(
+      copies,
+      0L
+    )
   )
 
 
@@ -240,94 +420,137 @@ comparison_counts <- bind_rows(
 
   counts %>%
     mutate(
-      gene_set = "All recorded genes"
+      gene_set =
+        "All recorded genes"
     ),
 
   syntenic_counts %>%
     mutate(
-      gene_set = "Syntenic genes (PASS only)"
+      gene_set =
+        "Syntenic genes (PASS only)"
     )
 
 )
 
 
-# A copy-variable core entry:
+# Definition:
 #
-#   - is represented in every accession
-#   - has different copy numbers among accessions
+# A copy-variable core entry
+#
+# - is represented in every accession
+# - but has different copy numbers among accessions
 
 copy_variable_core <- comparison_counts %>%
+
   group_by(
     gene_set,
     pgID
   ) %>%
+
   summarise(
-    core = all(copies > 0),
-    min_copies = min(copies),
-    max_copies = max(copies),
+
+    core = all(
+      copies > 0
+    ),
+
+    min_copies = min(
+      copies
+    ),
+
+    max_copies = max(
+      copies
+    ),
+
     .groups = "drop"
+
   ) %>%
+
   filter(
     core,
     max_copies > min_copies
   ) %>%
+
   mutate(
-    copy_difference = max_copies - min_copies
+    copy_difference =
+      max_copies - min_copies
   )
 
 
-# Report number of copy-variable core entries in each gene set.
-# Include a zero if no entries qualify.
+# ============================================================================
+# Summary of copy-variable core entries
+# ============================================================================
 
 core_summary <- tibble(
-  gene_set = unique(comparison_counts$gene_set)
+  gene_set =
+    unique(
+      comparison_counts$gene_set
+    )
 ) %>%
+
   left_join(
+
     count(
       copy_variable_core,
       gene_set,
       name = "entries"
     ),
+
     by = "gene_set"
+
   ) %>%
+
   mutate(
-    entries = replace_na(entries, 0L)
+    entries = replace_na(
+      entries,
+      0L
+    )
   )
 
 
 message(
   paste0(
-    "\nNumber of copy-variable core entries in each gene set ",
+    "\nNumber of copy-variable core entries ",
     "(all recorded genes versus PASS-only syntenic genes):"
   )
 )
 
-print(core_summary)
+print(
+  core_summary
+)
 
 
 # ============================================================================
-# STEP 6: Plot copy-number differences
+# STEP 6: Select copy-variable entries for plotting
 # ============================================================================
 
-# Select up to 20 copy-variable core entries for each gene set.
+# For each comparison set, select up to 20 entries with the largest
+# copy-number difference across accessions.
 #
-# Entries are ranked by the largest difference between maximum and minimum
-# copy number across the five accessions.
+# Ties are resolved by maximum copy number and then pgID.
 
 plot_entries <- copy_variable_core %>%
-  group_by(gene_set) %>%
+
+  group_by(
+    gene_set
+  ) %>%
+
   arrange(
     desc(copy_difference),
     desc(max_copies),
     pgID,
     .by_group = TRUE
   ) %>%
-  slice_head(n = 20) %>%
+
+  slice_head(
+    n = 20
+  ) %>%
+
   ungroup()
 
 
-# Create separate row labels so that each facet can contain a different set
-# and order of pgIDs.
+# Different gene sets may contain different pgIDs.
+#
+# Construct unique plotting labels using both gene_set and pgID.
 
 plot_order <- paste(
   plot_entries$gene_set,
@@ -337,19 +560,29 @@ plot_order <- paste(
 
 
 plot_counts <- comparison_counts %>%
+
   semi_join(
     plot_entries,
-    by = c("gene_set", "pgID")
+    by = c(
+      "gene_set",
+      "pgID"
+    )
   ) %>%
+
   mutate(
 
     plot_row = factor(
+
       paste(
         gene_set,
         pgID,
         sep = "::"
       ),
-      levels = rev(plot_order)
+
+      levels = rev(
+        plot_order
+      )
+
     ),
 
     gene_set = factor(
@@ -359,6 +592,10 @@ plot_counts <- comparison_counts %>%
 
   )
 
+
+# ============================================================================
+# Plot 08: Copy-variable core comparison
+# ============================================================================
 
 if (nrow(plot_counts) > 0) {
 
@@ -377,22 +614,11 @@ if (nrow(plot_counts) > 0) {
 
     geom_text(
       aes(
-        label = copies,
-        colour =
-          copies >
-          min(copies) +
-          0.6 * (max(copies) - min(copies))
+        label = copies
       ),
       size = 4,
-      fontface = "bold"
-    ) +
-
-    scale_colour_manual(
-      values = c(
-        "FALSE" = "white",
-        "TRUE" = "black"
-      ),
-      guide = "none"
+      fontface = "bold",
+      colour = "black"
     ) +
 
     facet_wrap(
@@ -403,7 +629,11 @@ if (nrow(plot_counts) > 0) {
 
     scale_y_discrete(
       labels = function(x) {
-        sub("^.*::", "", x)
+        sub(
+          "^.*::",
+          "",
+          x
+        )
       }
     ) +
 
@@ -423,41 +653,57 @@ if (nrow(plot_counts) > 0) {
     ) +
 
     theme(
+
       axis.text = element_text(
         colour = "black"
       ),
+
       axis.text.x = element_text(
         angle = 45,
         hjust = 1
       ),
+
       panel.grid = element_blank()
+
     )
 
 
   message(
-    paste0(
-      "\nCopy-variable core plot: top entries ranked by ",
-      "largest copy-number difference."
-    )
+    "\nPlot 08: Copy-variable core comparison"
   )
 
-  print(cnv_plot)
+  print(
+    cnv_plot
+  )
 
 
   ggsave(
     filename = file.path(
       plot_dir,
-      "copy_variable_core_comparison.pdf"
+      "08_copy_variable_core_comparison.pdf"
     ),
     plot = cnv_plot,
     width = 11,
     height = 9
   )
 
+
+  ggsave(
+    filename = file.path(
+      plot_dir,
+      "08_copy_variable_core_comparison.png"
+    ),
+    plot = cnv_plot,
+    width = 11,
+    height = 9,
+    dpi = 300
+  )
+
+
 } else {
 
   message(
-    "No copy-variable core entries were found in either gene set."
+    "No copy-variable core entries were found."
   )
 
 }
@@ -467,7 +713,6 @@ if (nrow(plot_counts) > 0) {
 # Save result tables
 # ============================================================================
 
-# Presence categories.
 write_tsv(
   presence_summary,
   file.path(
@@ -477,7 +722,15 @@ write_tsv(
 )
 
 
-# Unique genes represented per accession.
+write_tsv(
+  frequency,
+  file.path(
+    table_dir,
+    "pangenome_presence_frequency.tsv"
+  )
+)
+
+
 write_tsv(
   genome_summary,
   file.path(
@@ -487,7 +740,6 @@ write_tsv(
 )
 
 
-# Copy-variable core counts.
 write_tsv(
   core_summary,
   file.path(
@@ -497,7 +749,6 @@ write_tsv(
 )
 
 
-# Detailed copy-variable entries.
 write_tsv(
   copy_variable_core,
   file.path(
@@ -507,18 +758,45 @@ write_tsv(
 )
 
 
-# List genes associated with pan-gene entries for Lu1 and TAIR10,
-# including their GENESPACE assignment flags.
+write_tsv(
+  counts,
+  file.path(
+    table_dir,
+    "all_recorded_copy_counts.tsv"
+  )
+)
+
+
+write_tsv(
+  syntenic_counts,
+  file.path(
+    table_dir,
+    "PASS_only_copy_counts.tsv"
+  )
+)
+
+
+# ============================================================================
+# Save Lu1 and TAIR10 gene positions
+# ============================================================================
+
+# Useful for later inspection of suspicious high-copy entries.
 
 gene_positions <- pg %>%
+
   filter(
+
     genome %in% c(
       focal_genome,
       "TAIR10"
     ),
+
     !is.na(id),
+
     nzchar(id)
+
   ) %>%
+
   select(
     pgID,
     genome,
@@ -528,7 +806,9 @@ gene_positions <- pg %>%
     start,
     end
   ) %>%
+
   distinct() %>%
+
   arrange(
     pgID,
     genome,
@@ -546,28 +826,71 @@ write_tsv(
 )
 
 
+# ============================================================================
+# Final summary
+# ============================================================================
+
 message("\n============================================")
 message("Pangenome analysis completed successfully")
 message("============================================")
 
-message("\nOutput directory:")
-message(output_dir)
 
-message("\nPlots:")
+message("\nPresence categories:")
+print(
+  presence_summary
+)
+
+
+message("\nUnique genes per accession:")
+print(
+  genome_summary
+)
+
+
+message("\nCopy-variable core entries:")
+print(
+  core_summary
+)
+
+
+message("\nFinal plots:")
+
 message(
   file.path(
     plot_dir,
-    "pangenome_presence_frequency.pdf"
+    "07_pangenome_presence_frequency.pdf"
   )
 )
 
 message(
   file.path(
     plot_dir,
-    "copy_variable_core_comparison.pdf"
+    "07_pangenome_presence_frequency.png"
   )
 )
 
-message("\nTables:")
-message(table_dir)
+message(
+  file.path(
+    plot_dir,
+    "08_copy_variable_core_comparison.pdf"
+  )
+)
+
+message(
+  file.path(
+    plot_dir,
+    "08_copy_variable_core_comparison.png"
+  )
+)
+
+
+message("\nResult tables:")
+message(
+  table_dir
+)
+
+
+message("\n============================================")
+message("Week 4 pangenome analysis finished")
+message("============================================")
 
