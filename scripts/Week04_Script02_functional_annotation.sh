@@ -17,18 +17,19 @@ COURSEDIR=/data/courses/genome_annotation_resources/2026
 FINALDIR="$WORKDIR/output/MAKER/final"
 OUTDIR="$WORKDIR/output/comparisons"
 
-MAKER_SIF="$COURSEDIR/containers/MAKER_3.01.03.sif"
+PROTEINS="$FINALDIR/assembly.all.maker.proteins.fasta.renamed.filtered.fasta"
+GENES="$FINALDIR/filtered.genes.renamed.gff3"
 
 UNIPROT="$COURSEDIR/data/uniprot_viridiplantae_reviewed.fa"
 BESTHITS="$OUTDIR/blastp_uniprot.besthits.tsv"
 
-PROTEINS="$FINALDIR/assembly.all.maker.proteins.fasta.renamed.filtered.fasta"
+MAKER_SIF="$COURSEDIR/containers/MAKER_3.01.03.sif"
 
-# Use the complete MAKER-produced GFF here.
-BASE_GFF="$FINALDIR/assembly.all.maker.noseq.gff.renamed.gff"
+ANNOTATOR="$WORKDIR/scripts/Week04_Script02_annotate_uniprot_gff.py"
 
-# InterProScan output generated in Week 3.
-IPRSCAN="$FINALDIR/output.iprscan"
+OUTPUT_FASTA="$OUTDIR/maker_proteins.filtered.Uniprot.fasta"
+OUTPUT_GFF="$OUTDIR/filtered.genes.Uniprot.gff3"
+OUTPUT_TABLE="$OUTDIR/Week04_uniprot_function_summary.tsv"
 
 TMPDIR="$OUTDIR/tmp"
 
@@ -37,6 +38,7 @@ mkdir -p \
     "$WORKDIR/logs"
 
 cd "$OUTDIR"
+
 
 echo "========================================"
 echo "Week 4 - Functional annotation"
@@ -48,35 +50,38 @@ echo "========================================"
 # ============================================================================
 
 for FILE in \
+    "$PROTEINS" \
+    "$GENES" \
     "$UNIPROT" \
     "$BESTHITS" \
-    "$PROTEINS" \
-    "$BASE_GFF" \
-    "$IPRSCAN"
+    "$ANNOTATOR"
 do
     if [[ ! -s "$FILE" ]]; then
-        echo "ERROR: Missing or empty required file:"
+        echo "ERROR: Missing or empty file:"
         echo "$FILE"
         exit 1
     fi
 done
 
+
 echo
 echo "Inputs:"
+
 ls -lh \
-    "$UNIPROT" \
-    "$BESTHITS" \
     "$PROTEINS" \
-    "$BASE_GFF" \
-    "$IPRSCAN"
+    "$GENES" \
+    "$UNIPROT" \
+    "$BESTHITS"
 
 
 # ============================================================================
 # 1. Add UniProt functions to filtered protein FASTA
+#
+# maker_functional_fasta worked correctly in the previous run and is retained.
 # ============================================================================
 
 echo
-echo "Adding UniProt functions to filtered protein FASTA..."
+echo "Adding UniProt functions to protein FASTA..."
 
 apptainer exec \
     --cleanenv \
@@ -90,133 +95,94 @@ apptainer exec \
     "$UNIPROT" \
     "$BESTHITS" \
     "$PROTEINS" \
-    > "$OUTDIR/maker_proteins.filtered.Uniprot.fasta"
+    > "$OUTPUT_FASTA"
 
 
 # ============================================================================
-# 2. Add UniProt functions to complete renamed MAKER GFF
-# ============================================================================
-
-echo
-echo "Adding UniProt functions to complete MAKER GFF..."
-
-apptainer exec \
-    --cleanenv \
-    --env TMPDIR=/tmp \
-    --bind /data \
-    --bind "$WORKDIR" \
-    --bind "$TMPDIR":/tmp \
-    --pwd "$OUTDIR" \
-    "$MAKER_SIF" \
-    maker_functional_gff \
-    "$UNIPROT" \
-    "$BESTHITS" \
-    "$BASE_GFF" \
-    > "$OUTDIR/assembly.all.maker.renamed.Uniprot.gff"
-
-
-# ============================================================================
-# 3. Add InterProScan / Pfam / GO information
+# 2. Add UniProt functions to final GFF3
+#
+# maker_functional_gff fails on this MAKER version with a Perl HASH-reference
+# error despite the GFF being structurally valid. We therefore perform the
+# same mapping explicitly from the UniProt FASTA and BLAST best-hit table.
 # ============================================================================
 
 echo
-echo "Adding InterProScan / Pfam / GO annotations..."
+echo "Adding UniProt functions to final GFF3..."
 
-apptainer exec \
-    --cleanenv \
-    --env TMPDIR=/tmp \
-    --bind /data \
-    --bind "$WORKDIR" \
-    --bind "$TMPDIR":/tmp \
-    --pwd "$OUTDIR" \
-    "$MAKER_SIF" \
-    ipr_update_gff \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.gff" \
-    "$IPRSCAN" \
-    > "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.gff"
+python3 "$ANNOTATOR" \
+    --uniprot "$UNIPROT" \
+    --besthits "$BESTHITS" \
+    --proteins "$PROTEINS" \
+    --gff "$GENES" \
+    --output-gff "$OUTPUT_GFF" \
+    --output-table "$OUTPUT_TABLE"
 
 
 # ============================================================================
-# 4. Apply same Week-3 quality filter
-# ============================================================================
-
-echo
-echo "Applying MAKER quality filter..."
-
-apptainer exec \
-    --cleanenv \
-    --env TMPDIR=/tmp \
-    --bind /data \
-    --bind "$WORKDIR" \
-    --bind "$TMPDIR":/tmp \
-    --pwd "$OUTDIR" \
-    "$MAKER_SIF" \
-    perl /usr/local/bin/quality_filter.pl \
-    -s \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.gff" \
-    > "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.quality_filtered.gff"
-
-
-# ============================================================================
-# 5. Keep final gene-model features
-# ============================================================================
-
-echo
-echo "Extracting final gene features..."
-
-grep -P \
-    "\tgene\t|\tmRNA\t|\tCDS\t|\texon\t|\tfive_prime_UTR\t|\tthree_prime_UTR\t" \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.quality_filtered.gff" \
-    > "$OUTDIR/filtered.genes.Uniprot.gff3"
-
-sed -i '1i##gff-version 3' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3"
-
-
-# ============================================================================
-# 6. Summary
+# 3. Final validation
 # ============================================================================
 
 echo
 echo "========================================"
-echo "Functional annotation summary"
+echo "Validation"
 echo "========================================"
 
-echo -n "Input filtered proteins: "
-grep -c '^>' "$PROTEINS"
+INPUT_PROTEINS=$(grep -c '^>' "$PROTEINS")
+OUTPUT_PROTEINS=$(grep -c '^>' "$OUTPUT_FASTA")
 
-echo -n "Functional FASTA proteins: "
-grep -c '^>' "$OUTDIR/maker_proteins.filtered.Uniprot.fasta"
+INPUT_GENES=$(awk -F '\t' '$3=="gene"{n++} END{print n+0}' "$GENES")
+OUTPUT_GENES=$(awk -F '\t' '$3=="gene"{n++} END{print n+0}' "$OUTPUT_GFF")
 
-echo -n "Final genes: "
-awk -F '\t' '$3=="gene"{n++} END{print n+0}' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3"
+INPUT_MRNAS=$(awk -F '\t' '$3=="mRNA"{n++} END{print n+0}' "$GENES")
+OUTPUT_MRNAS=$(awk -F '\t' '$3=="mRNA"{n++} END{print n+0}' "$OUTPUT_GFF")
 
-echo -n "Final mRNAs: "
-awk -F '\t' '$3=="mRNA"{n++} END{print n+0}' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3"
 
-echo -n "GFF features with UniProt Note: "
-grep -c 'Note=' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3" || true
+echo "Input proteins:    $INPUT_PROTEINS"
+echo "Output proteins:   $OUTPUT_PROTEINS"
 
-echo -n "GFF features with Pfam Dbxref: "
-grep -c 'Pfam:' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3" || true
+echo "Input genes:       $INPUT_GENES"
+echo "Output genes:      $OUTPUT_GENES"
 
-echo -n "GFF features with GO terms: "
-grep -c 'Ontology_term=' \
-    "$OUTDIR/filtered.genes.Uniprot.gff3" || true
+echo "Input mRNAs:       $INPUT_MRNAS"
+echo "Output mRNAs:      $OUTPUT_MRNAS"
+
+
+if [[ "$INPUT_PROTEINS" -ne "$OUTPUT_PROTEINS" ]]; then
+    echo "ERROR: Protein count changed."
+    exit 1
+fi
+
+if [[ "$INPUT_GENES" -ne "$OUTPUT_GENES" ]]; then
+    echo "ERROR: Gene count changed."
+    exit 1
+fi
+
+if [[ "$INPUT_MRNAS" -ne "$OUTPUT_MRNAS" ]]; then
+    echo "ERROR: mRNA count changed."
+    exit 1
+fi
+
+
+echo
+echo "Features carrying UniProt cross-references:"
+
+grep -c 'UniProtKB:' "$OUTPUT_GFF" || true
+
+
+echo
+echo "Features carrying UniProt functional Notes:"
+
+grep -c 'Note=' "$OUTPUT_GFF" || true
+
 
 echo
 echo "Outputs:"
 
 ls -lh \
-    "$OUTDIR/maker_proteins.filtered.Uniprot.fasta" \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.gff" \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.gff" \
-    "$OUTDIR/assembly.all.maker.renamed.Uniprot.iprscan.quality_filtered.gff" \
-    "$OUTDIR/filtered.genes.Uniprot.gff3"
+    "$OUTPUT_FASTA" \
+    "$OUTPUT_GFF" \
+    "$OUTPUT_TABLE"
+
 
 echo
 echo "========================================"
